@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パニパニ翻訳アプリ</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="パニパニ">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .text-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 80px;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .output {
+            background: linear-gradient(135deg, #e8f4f8 0%, #f0f8ff 100%);
+            border-radius: 10px;
+            padding: 15px;
+            min-height: 60px;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 500;
+            color: #2c3e50;
+            border-left: 4px solid #667eea;
+        }
+
+        .output.empty {
+            color: #999;
+            font-style: italic;
+        }
+
+        .analysis {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            min-height: 80px;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+            border: 1px solid #e9ecef;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .modal-title {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .vocab-item {
+            padding: 8px;
+            margin: 4px 0;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 5px;
+                padding: 15px;
+                border-radius: 15px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .btn {
+                flex: none;
+                margin: 2px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🌸 パニパニ翻訳アプリ 🌸</h1>
+        <p class="subtitle">17語しかない人工言語パニパニの翻訳ツール</p>
+        
+        <div class="input-group">
+            <label class="label">🇯🇵 日本語を入力:</label>
+            <textarea 
+                id="japaneseInput" 
+                class="text-input" 
+                placeholder="例: 今日は会社を休んで病院へ行きます"
+                rows="3"
+            ></textarea>
+        </div>
+        
+        <div class="button-group">
+            <button id="translateBtn" class="btn btn-primary">🔄 翻訳</button>
+            <button id="clearBtn" class="btn btn-secondary">🗑️ クリア</button>
+            <button id="vocabBtn" class="btn btn-secondary">📚 語彙表</button>
+        </div>
+        
+        <div class="input-group">
+            <label class="label">🌟 パニパニ語:</label>
+            <div id="panipaniOutput" class="output empty">ここに翻訳結果が表示されます</div>
+        </div>
+        
+        <div class="input-group">
+            <label class="label">🔍 翻訳分析:</label>
+            <div id="analysisOutput" class="analysis"></div>
+        </div>
+    </div>
+
+    <!-- 語彙表モーダル -->
+    <div id="vocabModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-title">📚 パニパニ語彙表 (17語)</div>
+            <div id="vocabList"></div>
+            <button id="closeVocabModal" class="btn btn-secondary" style="width: 100%; margin-top: 15px;">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        // パニパニ翻訳クラス
+        class PaniPaniTranslator {
+            constructor() {
+                this.panipaniVocab = {
+                    'kai': '行く、来る、歩く、動く、変わる',
+                    'kim': '得る、食べる、飲む',
+                    'ma': 'いる、ある、生きている',
+                    'mai': '生物',
+                    'na': '私、あなた、あの人（たち）、これ、それ、あれ',
+                    'ni': '大きい、高い、多い、たくさん、とても、成長する',
+                    'pa': '言う、話す、聞く、書く、見る、読む、言葉、音、文字、絵、写真、刺激',
+                    'pu': '～ではない、～しない',
+                    'pin': '光、明るい、色',
+                    'ru': '場所、時間',
+                    'sa': '知る、わかる、知識、習う、教わる、考える、考え',
+                    'sai': 'よいこと、楽しい、美しい',
+                    'sin': '使う',
+                    'ta': '誰',
+                    'tin': 'する、作る',
+                    'kin': '得る、もらう、手に入れる',
+                    'nan': '何'
+                };
+                
+                this.translationDict = {
+                    '私': 'na', 'あなた': 'na', '彼': 'na', '彼女': 'na',
+                    'これ': 'na', 'それ': 'na', 'あれ': 'na', '誰': 'ta', '何': 'nan',
+                    '行く': 'kai', '行き': 'kai', '来る': 'kai', '歩く': 'kai', '動く': 'kai', '変わる': 'kai',
+                    '食べる': 'kim', '飲む': 'kim', '得る': 'kin', 'もらう': 'kin',
+                    'いる': 'ma', 'ある': 'ma', '生きる': 'ma',
+                    '言う': 'pa', '話す': 'pa', '聞く': 'pa', '書く': 'pa', '見る': 'pa', '読む': 'pa',
+                    '知る': 'sa', 'わかる': 'sa', '習う': 'sa', '学ぶ': 'sa', '教える': 'sa', '考える': 'sa',
+                    '使う': 'sin', 'する': 'tin', '作る': 'tin',
+                    '大きい': 'ni', '高い': 'ni', '多い': 'ni', 'たくさん': 'ni', 'とても': 'ni',
+                    'よい': 'sai', 'いい': 'sai', '楽しい': 'sai', '美しい': 'sai', '明るい': 'pin',
+                    '生物': 'mai', '動物': 'mai', '人': 'mai', '人間': 'mai',
+                    '言葉': 'pa', '音': 'pa', '文字': 'pa', '絵': 'pa', '写真': 'pa',
+                    '知識': 'sa', '場所': 'ru', '時間': 'ru', '光': 'pin', '色': 'pin',
+                    'ない': 'pu', 'ません': 'pu', 'じゃない': 'pu', 'ではない': 'pu',
+                    '休む': 'pu kai', '休ん': 'pu kai',
+                    '今日': 'ru', '病院': 'byouin', '会社': 'kaisha'
+                };
+            }
+            
+            preprocessJapanese(text) {
+                text = text.replace(/[。、！？]/g, '');
+                text = text.replace(/[はをにへでから]/g, ' ');
+                return text.trim();
+            }
+            
+            translateWord(word) {
+                if (this.translationDict[word]) {
+                    return this.translationDict[word];
+                }
+                
+                if (word.endsWith('ます')) {
+                    const base = word.slice(0, -2);
+                    if (this.translationDict[base]) {
+                        return this.translationDict[base];
+                    }
+                }
+                
+                return word;
+            }
+            
+            translateSentence(japaneseText) {
+                if (!japaneseText.trim()) {
+                    return "";
+                }
+                
+                const processed = this.preprocessJapanese(japaneseText);
+                const words = processed.split(/\s+/).filter(word => word);
+                
+                const panipaniWords = [];
+                let subject = null;
+                
+                for (const word of words) {
+                    const translated = this.translateWord(word);
+                    panipaniWords.push(translated);
+                    
+                    if (translated === 'na' && subject === null) {
+                        subject = 'na';
+                    }
+                }
+                
+                if (subject === 'na' && panipaniWords.length > 1) {
+                    return `na na ${panipaniWords.slice(1).join(' ')}`;
+                } else {
+                    return panipaniWords.join(' ');
+                }
+            }
+            
+            analyzeTranslation(japaneseText) {
+                const processed = this.preprocessJapanese(japaneseText);
+                const words = processed.split(/\s+/).filter(word => word);
+                const analysis = [];
+                
+                for (const word of words) {
+                    const translated = this.translateWord(word);
+                    if (translated === word) {
+                        analysis.push(`'${word}' → '${translated}' (借用語)`);
+                    } else {
+                        const meaning = this.panipaniVocab[translated] || "複合語/不明";
+                        analysis.push(`'${word}' → '${translated}' (${meaning})`);
+                    }
+                }
+                
+                return analysis;
+            }
+        }
+
+        // アプリ初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            const translator = new PaniPaniTranslator();
+            
+            // DOM要素の取得
+            const japaneseInput = document.getElementById('japaneseInput');
+            const panipaniOutput = document.getElementById('panipaniOutput');
+            const analysisOutput = document.getElementById('analysisOutput');
+            const translateBtn = document.getElementById('translateBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const vocabBtn = document.getElementById('vocabBtn');
+            const vocabModal = document.getElementById('vocabModal');
+            const vocabList = document.getElementById('vocabList');
+            
+            // 語彙表の内容を設定
+            const vocabItems = Object.entries(translator.panipaniVocab)
+                .map(([word, meaning]) => 
+                    `<div class="vocab-item"><strong>${word}</strong>: ${meaning}</div>`
+                ).join('');
+            vocabList.innerHTML = vocabItems;
+            
+            // 翻訳機能
+            function translate() {
+                const japanese = japaneseInput.value.trim();
+                if (!japanese) {
+                    alert('日本語を入力してください');
+                    return;
+                }
+                
+                const panipani = translator.translateSentence(japanese);
+                panipaniOutput.textContent = panipani;
+                panipaniOutput.classList.remove('empty');
+                
+                const analysis = translator.analyzeTranslation(japanese);
+                analysisOutput.innerHTML = analysis.join('<br>');
+            }
+            
+            // クリア機能
+            function clearAll() {
+                japaneseInput.value = '';
+                panipaniOutput.textContent = 'ここに翻訳結果が表示されます';
+                panipaniOutput.classList.add('empty');
+                analysisOutput.textContent = '';
+            }
+            
+            // イベントリスナー
+            translateBtn.addEventListener('click', translate);
+            clearBtn.addEventListener('click', clearAll);
+            
+            // Enterキーで翻訳
+            japaneseInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    translate();
+                }
+            });
+            
+            // 語彙表モーダル
+            vocabBtn.addEventListener('click', function() {
+                vocabModal.classList.add('show');
+            });
+            
+            document.getElementById('closeVocabModal').addEventListener('click', function() {
+                vocabModal.classList.remove('show');
+            });
+            
+            vocabModal.addEventListener('click', function(e) {
+                if (e.target === vocabModal) {
+                    vocabModal.classList.remove('show');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
