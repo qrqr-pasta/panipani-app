@@ -1,352 +1,633 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-パニパニ翻訳アプリ (Kivy版 - Windows対応)
-まずはWindows上でテストしてから、別の方法でAPK化
-"""
-
-from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.textinput import TextInput
-from kivy.uix.button import Button
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.popup import Popup
-from kivy.config import Config
-from kivy.resources import resource_add_path
-from kivy.core.text import LabelBase
-import re
-import os
-
-# ウィンドウサイズを設定
-Config.set('graphics', 'width', '400')
-Config.set('graphics', 'height', '700')
-
-# 日本語フォントの設定
-def setup_japanese_font():
-    # Windowsの日本語フォントパスを探す
-    font_paths = [
-        'C:/Windows/Fonts/msgothic.ttc',  # MS Gothic
-        'C:/Windows/Fonts/meiryo.ttc',    # Meiryo
-        'C:/Windows/Fonts/YuGothM.ttc',   # Yu Gothic Medium
-        'C:/Windows/Fonts/NotoSansCJK-Regular.ttc',  # Noto Sans CJK
-    ]
-    
-    for font_path in font_paths:
-        if os.path.exists(font_path):
-            LabelBase.register(name='Japanese', fn_regular=font_path)
-            print(f"Japanese font loaded: {font_path}")
-            return True
-    
-    print("No Japanese font found, using default")
-    return False
-
-# 日本語フォントをセットアップ
-setup_japanese_font()
-
-class PaniPaniTranslator:
-    def __init__(self):
-        # パニパニの17の基本語彙
-        self.panipani_vocab = {
-            'kai': '行く、来る、歩く、動く、変わる',
-            'kim': '得る、食べる、飲む',
-            'ma': 'いる、ある、生きている',
-            'mai': '生物',
-            'na': '私、あなた、あの人（たち）、これ、それ、あれ',
-            'ni': '大きい、高い、多い、たくさん、とても、成長する',
-            'pa': '言う、話す、聞く、書く、見る、読む、言葉、音、文字、絵、写真、刺激',
-            'pu': '～ではない、～しない',
-            'pin': '光、明るい、色',
-            'ru': '場所、時間',
-            'sa': '知る、わかる、知識、習う、教わる、考える、考え',
-            'sai': 'よいこと、楽しい、美しい',
-            'sin': '使う',
-            'ta': '誰',
-            'tin': 'する、作る',
-            'kin': '得る、もらう、手に入れる',
-            'nan': '何'
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パニパニ翻訳アプリ</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="パニパニ">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        
-        # 日本語→パニパニの基本的な翻訳辞書
-        self.translation_dict = {
-            # 代名詞
-            '私': 'na', 'あなた': 'na', '彼': 'na', '彼女': 'na',
-            'これ': 'na', 'それ': 'na', 'あれ': 'na', '誰': 'ta', '何': 'nan',
-            
-            # 動詞
-            '行く': 'kai', '行き': 'kai', '来る': 'kai', '歩く': 'kai', '動く': 'kai', '変わる': 'kai',
-            '食べる': 'kim', '飲む': 'kim', '得る': 'kin', 'もらう': 'kin',
-            'いる': 'ma', 'ある': 'ma', '生きる': 'ma',
-            '言う': 'pa', '話す': 'pa', '聞く': 'pa', '書く': 'pa', '見る': 'pa', '読む': 'pa',
-            '知る': 'sa', 'わかる': 'sa', '習う': 'sa', '学ぶ': 'sa', '教える': 'sa', '考える': 'sa',
-            '使う': 'sin', 'する': 'tin', '作る': 'tin',
-            
-            # 形容詞・副詞
-            '大きい': 'ni', '高い': 'ni', '多い': 'ni', 'たくさん': 'ni', 'とても': 'ni',
-            'よい': 'sai', 'いい': 'sai', '楽しい': 'sai', '美しい': 'sai', '明るい': 'pin',
-            
-            # 名詞
-            '生物': 'mai', '動物': 'mai', '人': 'mai', '人間': 'mai',
-            '言葉': 'pa', '音': 'pa', '文字': 'pa', '絵': 'pa', '写真': 'pa',
-            '知識': 'sa', '場所': 'ru', '時間': 'ru', '光': 'pin', '色': 'pin',
-            
-            # 否定
-            'ない': 'pu', 'ません': 'pu', 'じゃない': 'pu', 'ではない': 'pu',
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
         }
-    
-    def preprocess_japanese(self, text):
-        """日本語テキストの前処理"""
-        text = re.sub(r'[。、！？]', '', text)
-        text = re.sub(r'[はをにへでから]', ' ', text)
-        return text.strip()
-    
-    def translate_word(self, word):
-        """単語をパニパニ語に翻訳"""
-        if word in self.translation_dict:
-            return self.translation_dict[word]
-        
-        # 動詞の活用形を処理
-        if word.endswith('ます'):
-            base = word[:-2]
-            if base in self.translation_dict:
-                return self.translation_dict[base]
-        
-        return word  # 借用語として残す
-    
-    def translate_sentence(self, japanese_text):
-        """日本語の文をパニパニ語に翻訳"""
-        if not japanese_text.strip():
-            return ""
-        
-        processed = self.preprocess_japanese(japanese_text)
-        words = processed.split()
-        
-        panipani_words = []
-        subject = None
-        
-        for word in words:
-            translated = self.translate_word(word)
-            panipani_words.append(translated)
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .translation-mode {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .mode-switch {
+            display: flex;
+            background: #e9ecef;
+            border-radius: 25px;
+            padding: 4px;
+            margin-bottom: 10px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: transparent;
+            color: #666;
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .mode-description {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .text-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 80px;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .output {
+            background: linear-gradient(135deg, #e8f4f8 0%, #f0f8ff 100%);
+            border-radius: 10px;
+            padding: 15px;
+            min-height: 60px;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 500;
+            color: #2c3e50;
+            border-left: 4px solid #667eea;
+        }
+
+        .output.empty {
+            color: #999;
+            font-style: italic;
+        }
+
+        .analysis {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            min-height: 80px;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+            border: 1px solid #e9ecef;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .modal-title {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .vocab-item {
+            padding: 8px;
+            margin: 4px 0;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+
+        .example-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+
+        .example-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .example-text {
+            font-size: 13px;
+            color: #856404;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 5px;
+                padding: 15px;
+                border-radius: 15px;
+            }
             
-            if translated == 'na' and subject is None:
-                subject = 'na'
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .btn {
+                flex: none;
+                margin: 2px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🌸 パニパニ翻訳アプリ 🌸</h1>
+        <p class="subtitle">17語しかない人工言語パニパニの双方向翻訳ツール</p>
         
-        if subject == 'na' and len(panipani_words) > 1:
-            result = f"na na {' '.join(panipani_words[1:])}"
-        else:
-            result = ' '.join(panipani_words)
-        
-        return result
+        <!-- 翻訳モード切り替え -->
+        <div class="translation-mode">
+            <div class="mode-switch">
+                <button id="modeJaToPa" class="mode-btn active">🇯🇵→🌸</button>
+                <button id="modePaToJa" class="mode-btn">🌸→🇯🇵</button>
+            </div>
+            <div id="modeText" class="mode-description">日本語 → パニパニ語</div>
+        </div>
 
-class MainWidget(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.padding = [10, 10]
-        self.spacing = 10
+        <!-- 例文表示 -->
+        <div id="exampleSection" class="example-section">
+            <div class="example-title">💡 例文:</div>
+            <div id="exampleText" class="example-text">私は会社を休む</div>
+        </div>
         
-        self.translator = PaniPaniTranslator()
-        self.setup_ui()
-    
-    def setup_ui(self):
-        # タイトル
-        title = Label(
-            text='パニパニ翻訳アプリ',
-            size_hint_y=None,
-            height=50,
-            font_size='20sp',
-            font_name='Japanese',
-            bold=True,
-            color=[0.2, 0.2, 0.8, 1]
-        )
-        self.add_widget(title)
+        <div class="input-group">
+            <label id="inputLabel" class="label">🇯🇵 日本語を入力:</label>
+            <textarea 
+                id="inputText" 
+                class="text-input" 
+                placeholder="例: 私は会社を休む"
+                rows="3"
+            ></textarea>
+        </div>
         
-        # 日本語入力エリア
-        japanese_label = Label(
-            text='日本語を入力:',
-            size_hint_y=None,
-            height=30,
-            font_size='16sp',
-            font_name='Japanese',
-            halign='left',
-            color=[0.3, 0.3, 0.3, 1]
-        )
-        japanese_label.bind(size=japanese_label.setter('text_size'))
-        self.add_widget(japanese_label)
+        <div class="button-group">
+            <button id="translateBtn" class="btn btn-primary">🔄 翻訳</button>
+            <button id="clearBtn" class="btn btn-secondary">🗑️ クリア</button>
+            <button id="vocabBtn" class="btn btn-secondary">📚 語彙表</button>
+        </div>
         
-        self.japanese_input = TextInput(
-            multiline=True,
-            size_hint_y=None,
-            height=100,
-            font_size='16sp',
-            font_name='Japanese',
-            hint_text='例: 今日は会社を休んで病院へ行きます',
-            background_color=[1, 1, 1, 1],
-            foreground_color=[0, 0, 0, 1]
-        )
-        self.add_widget(self.japanese_input)
+        <div class="input-group">
+            <label id="outputLabel" class="label">🌟 パニパニ語:</label>
+            <div id="output" class="output empty">ここに翻訳結果が表示されます</div>
+        </div>
         
-        # ボタンエリア
-        button_layout = BoxLayout(
-            size_hint_y=None,
-            height=50,
-            spacing=10
-        )
-        
-        translate_btn = Button(
-            text='翻訳',
-            font_size='16sp',
-            font_name='Japanese',
-            bold=True,
-            background_color=[0.2, 0.6, 1, 1],
-            color=[1, 1, 1, 1]
-        )
-        translate_btn.bind(on_press=self.translate)
-        button_layout.add_widget(translate_btn)
-        
-        clear_btn = Button(
-            text='クリア',
-            font_size='16sp',
-            background_color=[0.8, 0.8, 0.8, 1],
-            color=[0.2, 0.2, 0.2, 1]
-        )
-        clear_btn.bind(on_press=self.clear_all)
-        button_layout.add_widget(clear_btn)
-        
-        vocab_btn = Button(
-            text='語彙表',
-            font_size='16sp',
-            background_color=[0.6, 0.8, 0.4, 1],
-            color=[1, 1, 1, 1]
-        )
-        vocab_btn.bind(on_press=self.show_vocab)
-        button_layout.add_widget(vocab_btn)
-        
-        self.add_widget(button_layout)
-        
-        # パニパニ出力エリア
-        panipani_label = Label(
-            text='パニパニ語:',
-            size_hint_y=None,
-            height=30,
-            font_size='16sp',
-            halign='left',
-            color=[0.3, 0.3, 0.3, 1]
-        )
-        panipani_label.bind(size=panipani_label.setter('text_size'))
-        self.add_widget(panipani_label)
-        
-        self.panipani_output = TextInput(
-            multiline=True,
-            readonly=True,
-            size_hint_y=None,
-            height=80,
-            font_size='18sp',
-            background_color=[0.9, 0.95, 1, 1],
-            foreground_color=[0.1, 0.1, 0.6, 1],
-            font_name='Arial'  # 読みやすいフォント
-        )
-        self.add_widget(self.panipani_output)
-        
-        # 分析結果エリア
-        analysis_label = Label(
-            text='翻訳分析:',
-            size_hint_y=None,
-            height=30,
-            font_size='16sp',
-            halign='left',
-            color=[0.3, 0.3, 0.3, 1]
-        )
-        analysis_label.bind(size=analysis_label.setter('text_size'))
-        self.add_widget(analysis_label)
-        
-        scroll = ScrollView()
-        self.analysis_output = Label(
-            text='',
-            text_size=(None, None),
-            halign='left',
-            valign='top',
-            font_size='14sp',
-            color=[0.4, 0.4, 0.4, 1]
-        )
-        scroll.add_widget(self.analysis_output)
-        self.add_widget(scroll)
-    
-    def translate(self, instance):
-        """翻訳実行"""
-        japanese = self.japanese_input.text.strip()
-        if not japanese:
-            return
-        
-        # 翻訳実行
-        panipani = self.translator.translate_sentence(japanese)
-        self.panipani_output.text = panipani
-        
-        # 分析結果作成
-        processed = self.translator.preprocess_japanese(japanese)
-        words = processed.split()
-        analysis_lines = []
-        
-        for word in words:
-            translated = self.translator.translate_word(word)
-            if translated == word:
-                analysis_lines.append(f"'{word}' → '{translated}' (借用語)")
-            else:
-                meaning = self.translator.panipani_vocab.get(translated, "不明")
-                analysis_lines.append(f"'{word}' → '{translated}' ({meaning})")
-        
-        self.analysis_output.text = '\n'.join(analysis_lines)
-        # テキストサイズを動的に調整
-        self.analysis_output.text_size = (self.analysis_output.parent.width - 20, None)
-    
-    def clear_all(self, instance):
-        """全てクリア"""
-        self.japanese_input.text = ''
-        self.panipani_output.text = ''
-        self.analysis_output.text = ''
-    
-    def show_vocab(self, instance):
-        """語彙表ポップアップ表示"""
-        content = BoxLayout(orientation='vertical', spacing=10, padding=10)
-        
-        scroll = ScrollView()
-        vocab_lines = []
-        for word, meaning in self.translator.panipani_vocab.items():
-            vocab_lines.append(f'{word}: {meaning}')
-        
-        vocab_label = Label(
-            text='\n'.join(vocab_lines),
-            text_size=(350, None),
-            halign='left',
-            valign='top',
-            font_size='14sp',
-            color=[0.2, 0.2, 0.2, 1]
-        )
-        scroll.add_widget(vocab_label)
-        content.add_widget(scroll)
-        
-        close_btn = Button(
-            text='閉じる',
-            size_hint_y=None,
-            height=50,
-            font_size='16sp',
-            background_color=[0.6, 0.6, 0.6, 1],
-            color=[1, 1, 1, 1]
-        )
-        content.add_widget(close_btn)
-        
-        popup = Popup(
-            title='パニパニ語彙表 (17語)',
-            content=content,
-            size_hint=(0.9, 0.8),
-            title_size='18sp'
-        )
-        close_btn.bind(on_press=popup.dismiss)
-        popup.open()
+        <div class="input-group">
+            <label class="label">🔍 翻訳分析:</label>
+            <div id="analysisOutput" class="analysis"></div>
+        </div>
+    </div>
 
-class PaniPaniApp(App):
-    def build(self):
-        return MainWidget()
+    <!-- 語彙表モーダル -->
+    <div id="vocabModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-title">📚 パニパニ語彙表 (17語)</div>
+            <div id="vocabList"></div>
+            <button id="closeVocabModal" class="btn btn-secondary" style="width: 100%; margin-top: 15px;">閉じる</button>
+        </div>
+    </div>
 
-if __name__ == '__main__':
-    PaniPaniApp().run()
+    <script>
+        // パニパニ翻訳クラス
+        class PaniPaniTranslator {
+            constructor() {
+                this.panipaniVocab = {
+                    'kai': '行く、来る、歩く、動く、変わる',
+                    'kim': '得る、食べる、飲む',
+                    'ma': 'いる、ある、生きている',
+                    'mai': '生物',
+                    'na': '私、あなた、あの人（たち）、これ、それ、あれ',
+                    'ni': '大きい、高い、多い、たくさん、とても、成長する',
+                    'pa': '言う、話す、聞く、書く、見る、読む、言葉、音、文字、絵、写真、刺激',
+                    'pu': '～ではない、～しない',
+                    'pin': '光、明るい、色',
+                    'ru': '場所、時間',
+                    'sa': '知る、わかる、知識、習う、教わる、考える、考え',
+                    'sai': 'よいこと、楽しい、美しい',
+                    'sin': '使う',
+                    'ta': '誰',
+                    'tin': 'する、作る',
+                    'kin': '得る、もらう、手に入れる',
+                    'nan': '何'
+                };
+                
+                this.translationDict = {
+                    '私': 'na', 'あなた': 'na', '彼': 'na', '彼女': 'na',
+                    'これ': 'na', 'それ': 'na', 'あれ': 'na', '誰': 'ta', '何': 'nan',
+                    '行く': 'kai', '行き': 'kai', '来る': 'kai', '歩く': 'kai', '動く': 'kai', '変わる': 'kai',
+                    '食べる': 'kim', '飲む': 'kim', '得る': 'kin', 'もらう': 'kin',
+                    'いる': 'ma', 'ある': 'ma', '生きる': 'ma',
+                    '言う': 'pa', '話す': 'pa', '聞く': 'pa', '書く': 'pa', '見る': 'pa', '読む': 'pa',
+                    '知る': 'sa', 'わかる': 'sa', '習う': 'sa', '学ぶ': 'sa', '教える': 'sa', '考える': 'sa',
+                    '使う': 'sin', 'する': 'tin', '作る': 'tin',
+                    '大きい': 'ni', '高い': 'ni', '多い': 'ni', 'たくさん': 'ni', 'とても': 'ni',
+                    'よい': 'sai', 'いい': 'sai', '楽しい': 'sai', '美しい': 'sai', '明るい': 'pin',
+                    '生物': 'mai', '動物': 'mai', '人': 'mai', '人間': 'mai',
+                    '言葉': 'pa', '音': 'pa', '文字': 'pa', '絵': 'pa', '写真': 'pa',
+                    '知識': 'sa', '場所': 'ru', '時間': 'ru', '光': 'pin', '色': 'pin',
+                    'ない': 'pu', 'ません': 'pu', 'じゃない': 'pu', 'ではない': 'pu',
+                    '休む': 'pu kai', '休ん': 'pu kai',
+                    '今日': 'ru', '病院': 'byouin', '会社': 'kaisha'
+                };
+
+                // 逆翻訳用辞書
+                this.reverseDict = {};
+                for (const [japanese, panipani] of Object.entries(this.translationDict)) {
+                    if (!this.reverseDict[panipani]) {
+                        this.reverseDict[panipani] = [];
+                    }
+                    this.reverseDict[panipani].push(japanese);
+                }
+            }
+            
+            preprocessJapanese(text) {
+                text = text.replace(/[。、！？]/g, '');
+                text = text.replace(/[はをにへでから]/g, ' ');
+                return text.trim();
+            }
+
+            preprocessPanipani(text) {
+                return text.toLowerCase().trim();
+            }
+            
+            translateWord(word) {
+                if (this.translationDict[word]) {
+                    return this.translationDict[word];
+                }
+                
+                if (word.endsWith('ます')) {
+                    const base = word.slice(0, -2);
+                    if (this.translationDict[base]) {
+                        return this.translationDict[base];
+                    }
+                }
+                
+                return word;
+            }
+
+            translatePanipaniWord(word) {
+                if (this.reverseDict[word]) {
+                    return this.reverseDict[word][0]; // 最初の候補を返す
+                }
+                return word; // 見つからない場合はそのまま返す
+            }
+            
+            translateSentence(japaneseText) {
+                if (!japaneseText.trim()) {
+                    return "";
+                }
+                
+                const processed = this.preprocessJapanese(japaneseText);
+                const words = processed.split(/\s+/).filter(word => word);
+                
+                const panipaniWords = [];
+                let subject = null;
+                
+                for (const word of words) {
+                    const translated = this.translateWord(word);
+                    panipaniWords.push(translated);
+                    
+                    if (translated === 'na' && subject === null) {
+                        subject = 'na';
+                    }
+                }
+                
+                if (subject === 'na' && panipaniWords.length > 1) {
+                    return `na na ${panipaniWords.slice(1).join(' ')}`;
+                } else {
+                    return panipaniWords.join(' ');
+                }
+            }
+
+            translatePanipaniSentence(panipaniText) {
+                if (!panipaniText.trim()) {
+                    return "";
+                }
+
+                const processed = this.preprocessPanipani(panipaniText);
+                const words = processed.split(/\s+/).filter(word => word);
+                const japaneseWords = [];
+
+                // パニパニの文法: na na ... の形式をチェック
+                if (words.length >= 2 && words[0] === 'na' && words[1] === 'na') {
+                    japaneseWords.push('私は');
+                    for (let i = 2; i < words.length; i++) {
+                        const translated = this.translatePanipaniWord(words[i]);
+                        japaneseWords.push(translated);
+                    }
+                } else {
+                    for (const word of words) {
+                        const translated = this.translatePanipaniWord(word);
+                        japaneseWords.push(translated);
+                    }
+                }
+
+                return japaneseWords.join('');
+            }
+            
+            analyzeTranslation(inputText, isReverse = false) {
+                if (isReverse) {
+                    // パニパニ→日本語の分析
+                    const processed = this.preprocessPanipani(inputText);
+                    const words = processed.split(/\s+/).filter(word => word);
+                    const analysis = [];
+                    
+                    for (const word of words) {
+                        const translated = this.translatePanipaniWord(word);
+                        if (translated === word) {
+                            analysis.push(`'${word}' → '${translated}' (不明な語彙)`);
+                        } else {
+                            const meaning = this.panipaniVocab[word] || "不明";
+                            analysis.push(`'${word}' → '${translated}' (${meaning})`);
+                        }
+                    }
+                    return analysis;
+                } else {
+                    // 日本語→パニパニの分析
+                    const processed = this.preprocessJapanese(inputText);
+                    const words = processed.split(/\s+/).filter(word => word);
+                    const analysis = [];
+                    
+                    for (const word of words) {
+                        const translated = this.translateWord(word);
+                        if (translated === word) {
+                            analysis.push(`'${word}' → '${translated}' (借用語)`);
+                        } else {
+                            const meaning = this.panipaniVocab[translated] || "複合語/不明";
+                            analysis.push(`'${word}' → '${translated}' (${meaning})`);
+                        }
+                    }
+                    return analysis;
+                }
+            }
+        }
+
+        // アプリ初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            const translator = new PaniPaniTranslator();
+            let isReverse = false; // false: 日本語→パニパニ, true: パニパニ→日本語
+            
+            // DOM要素の取得
+            const modeJaToPa = document.getElementById('modeJaToPa');
+            const modePaToJa = document.getElementById('modePaToJa');
+            const modeText = document.getElementById('modeText');
+            const exampleText = document.getElementById('exampleText');
+            const inputLabel = document.getElementById('inputLabel');
+            const outputLabel = document.getElementById('outputLabel');
+            const inputText = document.getElementById('inputText');
+            const output = document.getElementById('output');
+            const analysisOutput = document.getElementById('analysisOutput');
+            const translateBtn = document.getElementById('translateBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const vocabBtn = document.getElementById('vocabBtn');
+            const vocabModal = document.getElementById('vocabModal');
+            const vocabList = document.getElementById('vocabList');
+            
+            // 語彙表の内容を設定
+            const vocabItems = Object.entries(translator.panipaniVocab)
+                .map(([word, meaning]) => 
+                    `<div class="vocab-item"><strong>${word}</strong>: ${meaning}</div>`
+                ).join('');
+            vocabList.innerHTML = vocabItems;
+
+            // UIを更新する関数
+            function updateUI() {
+                if (isReverse) {
+                    // パニパニ→日本語モード
+                    modeJaToPa.classList.remove('active');
+                    modePaToJa.classList.add('active');
+                    modeText.textContent = 'パニパニ語 → 日本語';
+                    inputLabel.textContent = '🌸 パニパニ語を入力:';
+                    outputLabel.textContent = '🇯🇵 日本語:';
+                    inputText.placeholder = '例: na na pu kai kaisha';
+                    exampleText.textContent = 'na na pu kai kaisha';
+                } else {
+                    // 日本語→パニパニモード
+                    modeJaToPa.classList.add('active');
+                    modePaToJa.classList.remove('active');
+                    modeText.textContent = '日本語 → パニパニ語';
+                    inputLabel.textContent = '🇯🇵 日本語を入力:';
+                    outputLabel.textContent = '🌟 パニパニ語:';
+                    inputText.placeholder = '例: 私は会社を休む';
+                    exampleText.textContent = '私は会社を休む';
+                }
+            }
+            
+            // 翻訳機能
+            function translate() {
+                const input = inputText.value.trim();
+                if (!input) {
+                    alert('テキストを入力してください');
+                    return;
+                }
+                
+                let result, analysis;
+                if (isReverse) {
+                    // パニパニ→日本語
+                    result = translator.translatePanipaniSentence(input);
+                    analysis = translator.analyzeTranslation(input, true);
+                } else {
+                    // 日本語→パニパニ
+                    result = translator.translateSentence(input);
+                    analysis = translator.analyzeTranslation(input, false);
+                }
+                
+                output.textContent = result;
+                output.classList.remove('empty');
+                analysisOutput.innerHTML = analysis.join('<br>');
+            }
+            
+            // クリア機能
+            function clearAll() {
+                inputText.value = '';
+                output.textContent = 'ここに翻訳結果が表示されます';
+                output.classList.add('empty');
+                analysisOutput.textContent = '';
+            }
+            
+            // イベントリスナー
+            modeJaToPa.addEventListener('click', () => {
+                isReverse = false;
+                updateUI();
+                clearAll();
+            });
+
+            modePaToJa.addEventListener('click', () => {
+                isReverse = true;
+                updateUI();
+                clearAll();
+            });
+
+            translateBtn.addEventListener('click', translate);
+            clearBtn.addEventListener('click', clearAll);
+            
+            // Enterキーで翻訳
+            inputText.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    translate();
+                }
+            });
+            
+            // 語彙表モーダル
+            vocabBtn.addEventListener('click', function() {
+                vocabModal.classList.add('show');
+            });
+            
+            document.getElementById('closeVocabModal').addEventListener('click', function() {
+                vocabModal.classList.remove('show');
+            });
+            
+            vocabModal.addEventListener('click', function(e) {
+                if (e.target === vocabModal) {
+                    vocabModal.classList.remove('show');
+                }
+            });
+
+            // 例文クリックで自動入力
+            exampleText.addEventListener('click', function() {
+                inputText.value = exampleText.textContent;
+                translate();
+            });
+        });
+    </script>
+</body>
+</html>
